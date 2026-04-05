@@ -682,22 +682,43 @@ pyinstaller --name password_manager src/main.py
 #### 使用方法
 
 ```bash
-# 使用传统 pip 安装依赖
+# Debug 构建（默认，带源码 + debugpy，支持远程调试）
 build.bat
+
+# Release 构建（不带源码和 debugpy，体积更小更安全）
+build.bat --release
 
 # 使用 uv 安装依赖（速度更快）
 build.bat --uv
+
+# uv + Release 模式
+build.bat --uv --release
 ```
+
+#### 构建模式对比
+
+| 特性                          | Debug 版 (`build.bat`) | Release 版 (`build.bat --release`) |
+| ----------------------------- | :--------------------: | :--------------------------------: |
+| `.py` 源码打入包中            |           ✅            |                 ❌                  |
+| debugpy 调试支持              |           ✅            |                 ❌                  |
+| `--debug` 启动参数            |         ✅ 可用         |              ❌ 不可用              |
+| `run_with_log_with_debug.bat` |         ✅ 生成         |              ❌ 不生成              |
+| 包体积                        |          较大          |                较小                |
+| 适用场景                      |      开发 / 内测       |              正式发布              |
+
+> **安全提示**：Debug 版会将 `.py` 源码文件打入 `_internal/` 目录以支持断点调试，**请勿将 Debug 版分发给最终用户**。正式发布请使用 `build.bat --release`。
 
 #### 脚本功能
 
-1. **自动检查 uv**：如果使用 `--uv` 参数，会自动检查并安装 uv
-2. **虚拟环境管理**：自动创建和激活虚拟环境
-3. **依赖安装**：根据选择的工具（pip 或 uv）安装依赖
-4. **打包执行**：使用 PyInstaller 执行非单文件打包
-5. **配置文件处理**：自动复制 db_config.json 到打包目录
-6. **运行脚本创建**：创建 run_with_log.bat 用于运行程序并记录日志
-7. **压缩包创建**：将打包后的目录压缩为 zip 文件，方便分发
+1. **参数解析**：支持 `--uv` 和 `--release` 参数，可任意组合
+2. **自动检查 uv**：如果使用 `--uv` 参数，会自动检查并安装 uv
+3. **虚拟环境管理**：自动创建和激活虚拟环境
+4. **依赖安装**：根据选择的工具（pip 或 uv）安装依赖
+5. **打包执行**：使用 PyInstaller 执行非单文件打包
+6. **配置文件处理**：自动复制 db_config.json 到打包目录
+7. **运行脚本创建**：创建 run_with_log.bat 用于运行程序并记录日志
+8. **调试脚本创建**（仅 Debug 版）：创建 run_with_log_with_debug.bat
+9. **压缩包创建**：将打包后的目录压缩为 zip 文件，方便分发
 
 #### 输出结果
 
@@ -705,6 +726,137 @@ build.bat --uv
 
 - `password_manager` 目录：包含可执行文件和依赖
 - `password_manager.zip`：用于分发的压缩包
+- `run_with_log_with_debug.bat`（仅 Debug 版）：调试启动脚本
+
+---
+
+## 远程调试（Debug 版专属）
+
+Debug 版内置了 [debugpy](https://github.com/microsoft/debugpy) 远程调试支持，可以对打包后的 exe 进行断点调试。
+
+### 工作原理
+
+```
+password_manager.exe --debug
+  ├── 设置冻结环境适配（PYDEVD_DISABLE_FILE_VALIDATION, PYDEVD_USE_CYTHON=NO）
+  ├── 查找可用的 Python 解释器（用于 debugpy adapter 子进程）
+  ├── debugpy.listen(('0.0.0.0', 5678))  ← 启动 DAP 调试服务
+  ├── debugpy.wait_for_client()           ← 等待 VSCode 连接
+  ├── setup_client_server_paths()         ← 注册 src/ ↔ _internal/ 路径映射
+  └── 正常启动应用程序
+```
+
+### 使用步骤
+
+#### 1. 构建 Debug 版
+
+```bash
+build.bat
+# 或
+build.bat --uv
+```
+
+#### 2. 启动 exe（调试模式）
+
+```bash
+# 方式一：直接命令行启动
+cd dist\password_manager
+password_manager.exe --debug
+
+# 方式二：双击调试启动脚本
+dist\password_manager\run_with_log_with_debug.bat
+```
+
+启动后控制台会输出：
+
+```
+在冻结环境中运行，启用调试模式...
+调试用 Python 解释器: ...
+尝试启动远程调试服务，监听端口 5678...
+远程调试服务已启动，等待 VSCode 连接...
+```
+
+此时 exe 会暂停，等待 VSCode 连接。
+
+#### 3. VSCode Attach
+
+项目已提供 `.vscode/launch.json`，包含两个调试配置：
+
+| 配置名                    | 用途                                |
+| ------------------------- | ----------------------------------- |
+| **源码启动 (调试模式)**   | 直接调试源码，F5 启动 `src/main.py` |
+| **Attach 到打包后的 EXE** | 远程 attach 到运行中的 exe          |
+
+在 VSCode 调试面板选择 **"Attach 到打包后的 EXE"**，按 F5 连接。连接成功后控制台会输出：
+
+```
+VSCode 调试器已连接，开始执行程序...
+路径映射已设置: D:\...\src <-> D:\...\dist\password_manager\_internal
+```
+
+#### 4. 打断点调试
+
+在 `src/` 目录下的任意 `.py` 文件中打断点（红点），触发对应逻辑时断点即可命中。
+
+### PyInstaller 冻结环境下的调试难点
+
+打包后的 exe 与源码运行有本质区别，需要解决三个问题：
+
+| 问题              | 源码运行 (`python main.py`)    | 打包后 exe                                    | 解决方案                                   |
+| ----------------- | ------------------------------ | --------------------------------------------- | ------------------------------------------ |
+| **Python 解释器** | `python.exe` 可直接运行子进程  | exe 不是 python，debugpy adapter 找不到解释器 | `debugpy.configure(python=...)` 指定解释器 |
+| **源文件**        | `.py` 真实存在，debugpy 可读取 | 代码编译成字节码嵌入 exe，磁盘上无 `.py`      | `--add-data "src/*.py;."` 打入源码         |
+| **路径映射**      | VSCode 和运行时路径一致        | 运行时是 `_internal/`，VSCode 是 `src/`       | `setup_client_server_paths` 注册映射       |
+
+### 远程调试的依赖要求
+
+Debug 版通过 `subProcess=False` 让 debugpy adapter 以线程模式运行在 exe 主进程内，不启动外部子进程，因此**被调试端零依赖**。
+
+#### 被调试端（运行 exe 的人）
+
+| 依赖                        | 需要？ | 说明                                       |
+| --------------------------- | :----: | ------------------------------------------ |
+| Python 环境                 |   ❌    | adapter 以线程模式运行，不启动子进程       |
+| debugpy                     |   ❌    | 已打包在 exe 内部                          |
+| 源码文件                    |   ❌    | 已通过 `--add-data` 打入 `_internal/`      |
+| **网络端口 5678 可用**      |   ✅    | 防火墙需放行该端口，或确保未被其他程序占用 |
+| **启动时加 `--debug` 参数** |   ✅    | 或使用 `run_with_log_with_debug.bat`       |
+
+被调试端只需要拿到 Debug 版的 `password_manager` 目录，运行 `password_manager.exe --debug`，就会在 5678 端口等待连接。**无需安装任何软件**。
+
+#### 调试端（VSCode 连接的开发者）
+
+| 依赖                          | 需要？ | 说明                                      |
+| ----------------------------- | :----: | ----------------------------------------- |
+| **VSCode**                    |   ✅    | 调试 IDE                                  |
+| **Python 扩展（含 debugpy）** |   ✅    | VSCode 扩展市场安装 Microsoft Python 扩展 |
+| **项目源码**                  |   ✅    | `src/` 目录，用于打断点和查看代码         |
+| **`.vscode/launch.json`**     |   ✅    | 已配好 "Attach 到打包后的 EXE"            |
+| **网络连通**                  |   ✅    | 能访问被调试端的 IP:5678                  |
+
+#### 典型使用场景
+
+```
+内测人员的电脑（被调试端）             开发者的电脑（调试端）
+┌────────────────────────┐          ┌──────────────────────────┐
+│ password_manager.exe   │          │ VSCode                   │
+│   --debug              │          │   + Python 扩展           │
+│                        │  5678    │   + 项目源码 src/         │
+│ 监听 0.0.0.0:5678  ◄──────────────── Attach 连接             │
+│                        │          │                          │
+│ 零依赖，开箱即用        │          │ 在 src/ 中打断点调试      │
+└────────────────────────┘          └──────────────────────────┘
+```
+
+### 注意事项
+
+- 调试端口默认为 `5678`，如被占用会自动尝试 `5679`、`5680`
+- exe 必须在 `dist/password_manager/` 目录结构下运行，路径映射才能正确推算
+- 如果系统防火墙拦截了端口，需要添加放行规则
+- Release 版不包含 debugpy，`--debug` 参数会被忽略（import 失败后自动跳过）
+- 被调试端和调试端如果不在同一台机器上，需要将 `launch.json` 中的 `host` 从 `localhost` 改为被调试端的 IP 地址
+
+---
 
 将程序打包（如使用 PyInstaller）分发给其他用户时，需要了解各依赖的情况：
 
