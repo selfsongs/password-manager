@@ -81,6 +81,9 @@ source .venv/bin/activate
 ```bash
 uv pip install -r requirements.txt
 
+# 如果这个项目配置了pyproject.toml，也可以使用uv sync来安装依赖。
+uv sync
+
 # 查看已安装依赖
 uv pip list
 ```
@@ -710,6 +713,7 @@ build.bat --uv
 | 依赖                  | 类型                    | 打包时是否包含 | 对方是否需要额外安装       |
 | --------------------- | ----------------------- | :------------: | -------------------------- |
 | `sqlite3`             | Python 标准库           |   ✅ 自动包含   | ❌ **不需要**，Python 内置  |
+| `debugpy`             | Python 包（调试工具）   |  ✅ 打包时带入  | ❌ 不需要单独安装           |
 | `pymysql`             | Python 包（客户端驱动） |  ✅ 打包时带入  | ❌ 不需要单独安装           |
 | `redis`               | Python 包（客户端驱动） |  ✅ 打包时带入  | ❌ 不需要单独安装           |
 | `pymongo`             | Python 包（客户端驱动） |  ✅ 打包时带入  | ❌ 不需要单独安装           |

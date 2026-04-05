@@ -114,7 +114,7 @@ echo PyInstaller安装成功
 
 REM 执行打包
 echo 执行打包...
-pyinstaller --name password_manager src/main.py
+pyinstaller --name password_manager --additional-hooks-dir=hooks --onedir --noupx src/main.py
 if errorlevel 1 (
     echo 打包失败
     pause
@@ -149,17 +149,37 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+
+REM 创建run_with_log_with_debug.bat文件
+echo 创建带调试模式的运行脚本...
+(
+    echo @echo off
+    echo chcp 65001 ^> nul
+    echo call run_with_log.bat --debug
+) > "dist\password_manager\run_with_log_with_debug.bat"
+if errorlevel 1 (
+    echo 创建带调试模式的运行脚本失败
+    pause
+    exit /b 1
+)
 echo 运行脚本创建成功
 
 echo 打包流程完成！
 echo 可执行文件位于：dist\password_manager\password_manager.exe
 echo 配置文件已复制到：dist\password_manager\db_config.json
 echo 运行脚本已创建：dist\password_manager\run_with_log.bat
+echo 带调试模式的运行脚本已创建：dist\password_manager\run_with_log_with_debug.bat
+
 
 REM 创建压缩包用于分发
 echo 创建压缩包用于分发...
 set "ZIP_FILE=dist\password_manager.zip"
 echo 压缩包路径：%ZIP_FILE%
+
+REM 等待 2 秒，让系统释放文件
+echo 等待系统释放文件...
+timeout /t 2 /nobreak > nul
+
 echo 开始压缩...
 powershell -Command "try { Compress-Archive -Path 'dist\password_manager' -DestinationPath '%ZIP_FILE%' -Force; Write-Host '压缩成功' } catch { Write-Host '压缩失败: ' $_.Exception.Message; exit 1 }"
 if errorlevel 1 (
