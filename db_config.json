@@ -1,0 +1,36 @@
+{
+    "type": "sqlite",
+    "sqlite": {
+        "db_path": ""
+    },
+    "mysql": {
+        "host": "127.0.0.1",
+        "port": 3306,
+        "user": "root",
+        "password": "",
+        "database": "password_manager"
+    },
+    "mongodb": {
+        "host": "127.0.0.1",
+        "port": 27017,
+        "username": "",
+        "password": "",
+        "database": "password_manager",
+        "auth_source": "admin"
+    },
+    "postgresql": {
+        "host": "127.0.0.1",
+        "port": 5432,
+        "user": "postgres",
+        "password": "",
+        "database": "password_manager"
+    },
+    "redis": {
+        "enabled": false,
+        "host": "127.0.0.1",
+        "port": 6379,
+        "db": 0,
+        "password": "",
+        "default_ttl": 300
+    }
+}
