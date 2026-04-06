@@ -4,7 +4,7 @@
 import json
 import requests
 import threading
-from src.config import VERSION, UPDATE_CHECK_URL, UPDATE_CHECK_TIMEOUT
+from config import VERSION, UPDATE_CHECK_URL, UPDATE_CHECK_TIMEOUT
 
 
 class UpdateChecker:
@@ -25,19 +25,29 @@ class UpdateChecker:
         比较两个版本号
         返回 1（version1 > version2）、0（相等）或 -1（version1 < version2）
         """
-        v1_parts = list(map(int, version1.split('.')))
-        v2_parts = list(map(int, version2.split('.')))
+        try:
+            # 处理版本号，确保每个部分都是有效的整数
+            def parse_version(version):
+                parts = version.split('.')
+                # 过滤空字符串并转换为整数
+                return [int(part) for part in parts if part.strip()]
 
-        for i in range(max(len(v1_parts), len(v2_parts))):
-            v1 = v1_parts[i] if i < len(v1_parts) else 0
-            v2 = v2_parts[i] if i < len(v2_parts) else 0
+            v1_parts = parse_version(version1)
+            v2_parts = parse_version(version2)
 
-            if v1 > v2:
-                return 1
-            elif v1 < v2:
-                return -1
+            for i in range(max(len(v1_parts), len(v2_parts))):
+                v1 = v1_parts[i] if i < len(v1_parts) else 0
+                v2 = v2_parts[i] if i < len(v2_parts) else 0
 
-        return 0
+                if v1 > v2:
+                    return 1
+                elif v1 < v2:
+                    return -1
+
+            return 0
+        except (ValueError, AttributeError):
+            # 如果版本号格式不正确，默认认为没有更新
+            return -1
 
     def check_for_updates(self, callback=None):
         """
@@ -63,6 +73,9 @@ class UpdateChecker:
                     comparison = self.compare_versions(
                         self.remote_version, self.local_version)
                     self.update_available = comparison > 0
+                    # 输出版本信息
+                    print(
+                        f"当前版本: {self.local_version}, 最新版本: {self.remote_version}")
                 else:
                     self.error = "Invalid version information"
 

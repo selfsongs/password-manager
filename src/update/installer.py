@@ -30,28 +30,41 @@ class UpdateInstaller:
         # 构建更新脚本内容
         if update_path.endswith('.zip'):
             # 处理 ZIP 压缩包
+            # ZIP 内部结构为 password_manager/ 子目录，解压后需要将子目录内容移动到根目录
             script_content = f"""
 @echo off
+chcp 65001 > nul
 
 REM 等待主程序退出
-timeout /t 2 > nul
+timeout /t 3 > nul
 
-REM 删除旧文件
-if exist "{main_exe_dir}\\password_manager" (
-    rd /s /q "{main_exe_dir}\\password_manager"
+REM 解压更新包到临时目录
+set "TEMP_DIR={main_exe_dir}\\__update_temp__"
+if exist "%TEMP_DIR%" rd /s /q "%TEMP_DIR%"
+mkdir "%TEMP_DIR%"
+powershell -Command "Expand-Archive -Path '{update_path}' -DestinationPath '%TEMP_DIR%' -Force"
+
+REM 查找解压后的子目录（ZIP 内可能有一层 password_manager 目录）
+set "SOURCE_DIR=%TEMP_DIR%\\password_manager"
+if not exist "%SOURCE_DIR%" (
+    REM 如果没有子目录，说明文件直接在临时目录根下
+    set "SOURCE_DIR=%TEMP_DIR%"
 )
 
-REM 解压更新包
-powershell -Command "Expand-Archive -Path '{update_path}' -DestinationPath '{main_exe_dir}' -Force"
+REM 将新文件复制到主程序目录，覆盖旧文件
+xcopy /s /e /y "%SOURCE_DIR%\\*" "{main_exe_dir}\\"
 
 REM 启动主程序
 start "" "{main_exe_path}"
 
-REM 清理更新脚本
-del /f /q "%~f0"
+REM 清理临时目录
+rd /s /q "%TEMP_DIR%"
 
-REM 清理更新目录
-rd /s /q "%~dp0update"
+REM 清理更新包目录
+if exist "{main_exe_dir}\\update" rd /s /q "{main_exe_dir}\\update"
+
+REM 清理更新脚本自身
+del /f /q "%~f0"
 """
         else:
             # 处理单个可执行文件

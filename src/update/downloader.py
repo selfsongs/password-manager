@@ -4,7 +4,7 @@
 import os
 import hashlib
 import requests
-from src.config import UPDATE_DOWNLOAD_DIR
+from config import UPDATE_DOWNLOAD_DIR
 
 
 class UpdateDownloader:
@@ -24,11 +24,19 @@ class UpdateDownloader:
         """
         计算文件的 MD5 哈希值
         """
+        # 转换为绝对路径
+        absolute_path = os.path.abspath(file_path)
+        print(f"[DEBUG] 计算 MD5 的文件路径: {file_path}")
+        print(f"[DEBUG] 绝对路径: {absolute_path}")
+        print(
+            f"[DEBUG] 文件大小: {os.path.getsize(absolute_path) if os.path.exists(absolute_path) else '文件不存在'}")
         md5_hash = hashlib.md5()
-        with open(file_path, "rb") as f:
+        with open(absolute_path, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
                 md5_hash.update(chunk)
-        return md5_hash.hexdigest()
+        result = md5_hash.hexdigest()
+        print(f"[DEBUG] 计算结果: {result}")
+        return result
 
     def download_update(self, download_url, callback=None):
         """
@@ -49,6 +57,15 @@ class UpdateDownloader:
         # 生成保存路径
         filename = os.path.basename(download_url)
         self.save_path = os.path.join(UPDATE_DOWNLOAD_DIR, filename)
+        # 转换为绝对路径
+        self.save_path = os.path.abspath(self.save_path)
+        print(f"[DEBUG] 下载保存路径: {self.save_path}")
+        print(
+            f"[DEBUG] 目录是否存在: {os.path.exists(os.path.dirname(self.save_path))}")
+        # 确保目录存在
+        if not os.path.exists(os.path.dirname(self.save_path)):
+            os.makedirs(os.path.dirname(self.save_path))
+            print(f"[DEBUG] 目录已创建: {os.path.dirname(self.save_path)}")
 
         try:
             # 发送请求
@@ -67,8 +84,13 @@ class UpdateDownloader:
                         downloaded_size += len(chunk)
                         self.progress = int(
                             (downloaded_size / self.total_size) * 100) if self.total_size > 0 else 0
-                        if callback:
+                        if callback and self.progress < 100:
                             callback(self.progress, self.total_size, None)
+
+            # 文件句柄已关闭，通知下载完成
+            self.progress = 100
+            if callback:
+                callback(self.progress, self.total_size, None)
 
         except requests.RequestException as e:
             self.error = f"Download error: {str(e)}"
@@ -84,13 +106,33 @@ class UpdateDownloader:
         验证下载文件的完整性
         expected_md5: 期望的 MD5 哈希值
         """
-        if not os.path.exists(self.save_path):
+        # 打印当前工作目录
+        print(f"[DEBUG] 当前工作目录: {os.getcwd()}")
+        # 打印保存路径
+        print(f"[DEBUG] 保存路径: {self.save_path}")
+        # 打印绝对路径
+        absolute_path = os.path.abspath(self.save_path)
+        print(f"[DEBUG] 绝对路径: {absolute_path}")
+        # 检查文件是否存在
+        print(f"[DEBUG] 文件是否存在: {os.path.exists(absolute_path)}")
+        # 检查文件大小
+        if os.path.exists(absolute_path):
+            print(f"[DEBUG] 文件大小: {os.path.getsize(absolute_path)}")
+        else:
+            print(f"[ERROR] 文件不存在: {absolute_path}")
             return False
 
         try:
-            actual_md5 = self.calculate_md5(self.save_path)
-            return actual_md5 == expected_md5
-        except Exception:
+            # 计算 MD5
+            actual_md5 = self.calculate_md5(absolute_path)
+            print(f"[DEBUG] 实际 MD5: {actual_md5}")
+            print(f"[DEBUG] 期望 MD5: {expected_md5}")
+            # 统一大小写进行比较
+            return actual_md5.lower() == expected_md5.lower()
+        except Exception as e:
+            print(f"[ERROR] 计算 MD5 失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def get_download_info(self):
