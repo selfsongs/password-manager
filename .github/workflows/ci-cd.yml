@@ -11,7 +11,7 @@ jobs:
     if: startsWith(github.ref, 'refs/heads/')  # 只在分支推送时执行
     runs-on: windows-latest  # 使用 Windows 环境
     steps:
-      - uses: actions/checkout@v3  # 检出代码
+      - uses: actions/checkout@v4  # 检出代码
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -23,14 +23,19 @@ jobs:
           pip install pyinstaller
       - name: Build Debug version
         run: |
-          pyinstaller --name password_manager_debug --onedir src/main.py
+          pyinstaller --name password_manager --onedir --additional-hooks-dir=hooks --add-data "src/*.py;." src/main.py
+      - name: Copy configuration files
+        run: |
+          if (Test-Path "db_config.json") {
+            Copy-Item "db_config.json" -Destination "dist\password_manager\" -Force
+          }
       - name: Create ZIP archive for Debug
         run: |
-          Compress-Archive -Path dist/password_manager_debug -DestinationPath dist/password_manager_debug.zip
+          Compress-Archive -Path dist/password_manager -DestinationPath dist/password_manager_debug.zip
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: password-manager-debug
+          name: password_manager_debug
           path: dist/password_manager_debug.zip  # 上传压缩后的产物
 
   # Release 构建（创建 Tag 时）
@@ -38,13 +43,14 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')  # 只在 Tag 创建时执行
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
       - name: Extract version from tag
         id: get-version
+        shell: bash
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV  # 从 Tag 中提取版本号
       - name: Update version files
         run: |
@@ -57,7 +63,7 @@ jobs:
           # 创建或更新 version.json
           $versionInfo = @{
             latest_version = $env:VERSION
-            download_url = "https://github.com/selfsongs/password-manager/releases/download/v$env:VERSION/password_manager.exe"
+            download_url = "https://github.com/selfsongs/password-manager/releases/download/v$env:VERSION/password_manager.zip"
             changelog = @("Auto-generated release")
             md5_hash = ""
           } | ConvertTo-Json
@@ -69,7 +75,12 @@ jobs:
           pip install pyinstaller
       - name: Build Release version
         run: |
-          pyinstaller --name password_manager --onedir src/main.py
+          pyinstaller --name password_manager --onedir --additional-hooks-dir=hooks --hidden-import=config src/main.py
+      - name: Copy configuration files
+        run: |
+          if (Test-Path "db_config.json") {
+            Copy-Item "db_config.json" -Destination "dist\password_manager\" -Force
+          }
       - name: Create ZIP archive
         run: |
           Compress-Archive -Path dist/password_manager -DestinationPath dist/password_manager.zip
@@ -82,7 +93,6 @@ jobs:
         run: |
           $versionInfo = Get-Content version.json | ConvertFrom-Json
           $versionInfo.md5_hash = "$env:MD5_HASH"
-          $versionInfo.download_url = "https://github.com/selfsongs/password-manager/releases/download/v$env:VERSION/password_manager.zip"
           $versionInfo | ConvertTo-Json | Set-Content version.json
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1

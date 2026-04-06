@@ -1,17 +1,24 @@
+# fmt: off
 """
 main.py - 程序入口
 """
 import os
 import sys
+
+# 确保 src 目录在模块搜索路径中
+sys.path.insert(0, os.path.dirname(__file__))
+
 import argparse
 import customtkinter as ctk
 import database as db
 from auth_view import AuthView
 from main_view import MainView
-from src.update.checker import UpdateChecker
-from src.update.downloader import UpdateDownloader
-from src.update.installer import UpdateInstaller
-from src.update.ui import UpdateUI
+from update.checker import UpdateChecker
+from update.downloader import UpdateDownloader
+from update.installer import UpdateInstaller
+from update.ui import UpdateUI
+
+# fmt: on
 
 # 解析命令行参数
 parser = argparse.ArgumentParser(description="密码管理器")
@@ -70,42 +77,37 @@ if args.debug:
         print("远程调试服务已启动，等待 VSCode 连接...")
         print(f"请在 VSCode 中使用端口 {port} 连接")
         print("注意：如果连接失败，请检查防火墙设置或尝试使用不同端口")
+        print("")
+        print("=== 调试路径映射信息 ===")
+        if getattr(sys, 'frozen', False):
+            _internal_dir = getattr(
+                sys, '_MEIPASS', os.path.dirname(sys.executable))
+            print(f"远程临时目录: {_internal_dir}")
+            print("请在 VSCode launch.json 中设置 pathMappings:")
+            print('"pathMappings": [')
+            print('    {')
+            print('        "localRoot": "${workspaceFolder}/src",')
+            print(f'        "remoteRoot": "{_internal_dir}"')
+            print('    }')
+            print(']')
+        else:
+            print("当前在非冻结环境中运行")
+            print('请在 VSCode launch.json 中设置 pathMappings:')
+            print('"pathMappings": [')
+            print('    {')
+            print('        "localRoot": "${workspaceFolder}/src",')
+            print('        "remoteRoot": "${workspaceFolder}/src"')
+            print('    }')
+            print(']')
+        print("=====================")
+        print("")
         # 等待连接，确保调试器有足够时间连接
         debugpy.wait_for_client()
         print("VSCode 调试器已连接，开始执行程序...")
-
-        # 在冻结环境中手动设置路径映射
-        # debugpy 的 pathMappings 在冻结环境中可能不生效，需要通过 pydevd 内部 API 强制映射
-        if getattr(sys, 'frozen', False):
-            try:
-                _internal_dir = getattr(
-                    sys, '_MEIPASS', os.path.dirname(sys.executable))
-                # 源码目录：从 _internal 往上推算到项目的 src 目录
-                # _internal = .../dist/password_manager/_internal
-                # src = .../src
-                _dist_pm_dir = os.path.dirname(
-                    _internal_dir)  # dist/password_manager
-                _dist_dir = os.path.dirname(_dist_pm_dir)       # dist
-                _project_dir = os.path.dirname(_dist_dir)        # project root
-                _src_dir = os.path.join(_project_dir, 'src')
-
-                if os.path.exists(_src_dir):
-                    from debugpy._vendored.pydevd.pydevd_file_utils import setup_client_server_paths
-                    setup_client_server_paths([(_src_dir, _internal_dir)])
-                    print(f"路径映射已设置: {_src_dir} <-> {_internal_dir}")
-                else:
-                    print(f"[WARN] 源码目录不存在: {_src_dir}，断点可能无法命中")
-                    print("[WARN] 请确保 exe 在 dist/password_manager/ 目录下运行")
-            except Exception as e:
-                print(f"[WARN] 设置路径映射失败: {e}")
     except Exception as e:
         print(f"启动远程调试服务失败: {e}")
         # 即使调试服务启动失败，也继续执行程序
         pass
-
-
-# 确保 src 目录在模块搜索路径中
-sys.path.insert(0, os.path.dirname(__file__))
 
 
 class App(ctk.CTk):
@@ -129,6 +131,16 @@ class App(ctk.CTk):
         # 自动检查更新
         self.check_for_updates()
 
+        # 在界面右下角显示版本号
+        from config import VERSION
+        self.version_label = ctk.CTkLabel(
+            self,
+            text=f"版本: {VERSION}",
+            font=ctk.CTkFont(size=10),
+            text_color="gray"
+        )
+        self.version_label.place(relx=0.98, rely=0.98, anchor="se")
+
     def _clear(self):
         for w in self.winfo_children():
             w.destroy()
@@ -136,7 +148,8 @@ class App(ctk.CTk):
     def _show_auth(self):
         self._clear()
         self.geometry("480x520")
-        auth = AuthView(self, on_login_success=self._show_main)
+        auth = AuthView(self, on_login_success=self._show_main,
+                        on_check_update=self.check_for_updates)
         auth.pack(fill="both", expand=True)
 
     def _show_main(self, user, master_password: str):
@@ -167,8 +180,9 @@ class App(ctk.CTk):
                 self.update_ui.show_update_dialog(
                     update_info, on_update, on_remind_later, on_ignore)
             else:
-                # 显示已是最新版本
-                self.update_ui.show_message("检查更新", "当前已是最新版本")
+                # 显示已是最新版本，并包含版本号
+                from config import VERSION
+                self.update_ui.show_message("检查更新", f"当前已是最新版本: {VERSION}")
 
         # 开始检查更新
         self.update_checker.check_for_updates(on_check_complete)
@@ -201,7 +215,7 @@ class App(ctk.CTk):
                         self.install_update(self.update_downloader.save_path)
                     else:
                         download_dialog.destroy()
-                        self.update_ui.show_message("错误", "下载文件损坏，请重试")
+                        self.update_ui.show_message("错误", "下载文件损坏，请重试。")
 
         # 开始下载
         self.update_downloader.download_update(

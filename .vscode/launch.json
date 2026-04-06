@@ -24,7 +24,7 @@
             "pathMappings": [
                 {
                     "localRoot": "${workspaceFolder}/src",
-                    "remoteRoot": "${workspaceFolder}/dist/password_manager/_internal"
+                    "remoteRoot": "F:\\password_manager_debug\\_internal"
                 }
             ],
             "justMyCode": false

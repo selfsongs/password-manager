@@ -7,6 +7,7 @@ import customtkinter as ctk
 from tkinter import messagebox
 import database as db
 import crypto
+from utils import show_github_dialog
 
 
 class AuthView(ctk.CTkFrame):
@@ -14,12 +15,40 @@ class AuthView(ctk.CTkFrame):
     登录/注册界面，登录成功后调用 on_login_success(user_row, master_password)
     """
 
-    def __init__(self, master, on_login_success):
+    def __init__(self, master, on_login_success, on_check_update=None):
         super().__init__(master, fg_color="transparent")
         self.on_login_success = on_login_success
+        self.on_check_update = on_check_update
         self._build_ui()
 
     def _build_ui(self):
+        # 顶部栏 - 包含检查更新按钮
+        top_bar = ctk.CTkFrame(self, fg_color="transparent")
+        top_bar.pack(fill="x", padx=20, pady=(20, 0))
+
+        # 检查更新按钮
+        if self.on_check_update:
+            ctk.CTkButton(
+                top_bar,
+                text="检查更新",
+                width=90,
+                height=32,
+                fg_color="transparent",
+                border_width=1,
+                command=self.on_check_update,
+            ).pack(side="right", padx=(0, 10))
+
+        # GitHub仓库按钮
+        ctk.CTkButton(
+            top_bar,
+            text="GitHub仓库地址",
+            width=90,
+            height=32,
+            fg_color="transparent",
+            border_width=1,
+            command=self._show_github,
+        ).pack(side="right")
+
         # 标题区
         ctk.CTkLabel(
             self, text="密码管理器", font=ctk.CTkFont(size=28, weight="bold")
@@ -168,3 +197,7 @@ class AuthView(ctk.CTkFrame):
         self.reg_username.delete(0, "end")
         self.reg_password.delete(0, "end")
         self.reg_confirm.delete(0, "end")
+
+    def _show_github(self):
+        """显示GitHub仓库链接"""
+        show_github_dialog(self.winfo_toplevel())

@@ -9,6 +9,7 @@ import customtkinter as ctk
 from tkinter import messagebox
 import database as db
 import crypto
+from utils import show_github_dialog
 
 
 class PasswordDialog(ctk.CTkToplevel):
@@ -178,6 +179,17 @@ class MainView(ctk.CTkFrame):
                 border_width=1,
                 command=self.on_check_update,
             ).pack(side="right", padx=(0, 10))
+
+        # GitHub仓库按钮
+        ctk.CTkButton(
+            top,
+            text="GitHub仓库地址",
+            width=90,
+            height=32,
+            fg_color="transparent",
+            border_width=1,
+            command=self._show_github,
+        ).pack(side="right", padx=(0, 10))
 
         ctk.CTkButton(
             top,
@@ -373,3 +385,7 @@ class MainView(ctk.CTkFrame):
         ):
             db.delete_password(row["id"])
             self._load_entries()
+
+    def _show_github(self):
+        """显示GitHub仓库链接"""
+        show_github_dialog(self.winfo_toplevel())

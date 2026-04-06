@@ -179,6 +179,9 @@ echo 创建运行脚本...
 (
     echo @echo off
     echo chcp 65001 ^> nul
+    echo echo 运行 password_manager.exe...
+    echo password_manager.exe %%* 2^>^&1
+    echo echo 输出已保存到 log.txt
     echo password_manager.exe %%* ^> log.txt 2^>^&1
     echo pause
 ) > "dist\password_manager\run_with_log.bat"
