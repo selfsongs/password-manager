@@ -41,7 +41,7 @@ class AuthView(ctk.CTkFrame):
         # GitHub仓库按钮
         ctk.CTkButton(
             top_bar,
-            text="GitHub仓库地址",
+            text="GitHub仓库地址~",
             width=90,
             height=32,
             fg_color="transparent",

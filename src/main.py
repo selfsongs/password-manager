@@ -128,8 +128,8 @@ class App(ctk.CTk):
         self.update_downloader = UpdateDownloader()
         self.update_installer = UpdateInstaller()
 
-        # 自动检查更新
-        self.check_for_updates()
+        # 自动检查更新，无更新时不显示弹窗
+        self.check_for_updates(show_no_update_message=False)
 
         # 在界面右下角显示版本号
         from config import VERSION
@@ -159,9 +159,10 @@ class App(ctk.CTk):
                         on_check_update=self.check_for_updates)
         main.pack(fill="both", expand=True)
 
-    def check_for_updates(self):
+    def check_for_updates(self, show_no_update_message=True):
         """
         检查更新
+        show_no_update_message: 是否在无更新时显示消息
         """
         def on_check_complete(update_available, update_info, error):
             if error:
@@ -180,9 +181,12 @@ class App(ctk.CTk):
                 self.update_ui.show_update_dialog(
                     update_info, on_update, on_remind_later, on_ignore)
             else:
-                # 显示已是最新版本，并包含版本号
+                # 无更新
                 from config import VERSION
-                self.update_ui.show_message("检查更新", f"当前已是最新版本: {VERSION}")
+                print(f"当前已是最新版本: {VERSION}")
+                if show_no_update_message:
+                    # 显示弹窗
+                    self.update_ui.show_message("检查更新", f"当前已是最新版本: {VERSION}")
 
         # 开始检查更新
         self.update_checker.check_for_updates(on_check_complete)
