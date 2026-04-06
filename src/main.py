@@ -8,6 +8,10 @@ import customtkinter as ctk
 import database as db
 from auth_view import AuthView
 from main_view import MainView
+from src.update.checker import UpdateChecker
+from src.update.downloader import UpdateDownloader
+from src.update.installer import UpdateInstaller
+from src.update.ui import UpdateUI
 
 # 解析命令行参数
 parser = argparse.ArgumentParser(description="密码管理器")
@@ -91,7 +95,7 @@ if args.debug:
                     print(f"路径映射已设置: {_src_dir} <-> {_internal_dir}")
                 else:
                     print(f"[WARN] 源码目录不存在: {_src_dir}，断点可能无法命中")
-                    print(f"[WARN] 请确保 exe 在 dist/password_manager/ 目录下运行")
+                    print("[WARN] 请确保 exe 在 dist/password_manager/ 目录下运行")
             except Exception as e:
                 print(f"[WARN] 设置路径映射失败: {e}")
     except Exception as e:
@@ -116,6 +120,15 @@ class App(ctk.CTk):
         db.init_db()
         self._show_auth()
 
+        # 初始化更新相关组件
+        self.update_ui = UpdateUI(self)
+        self.update_checker = UpdateChecker()
+        self.update_downloader = UpdateDownloader()
+        self.update_installer = UpdateInstaller()
+
+        # 自动检查更新
+        self.check_for_updates()
+
     def _clear(self):
         for w in self.winfo_children():
             w.destroy()
@@ -129,8 +142,80 @@ class App(ctk.CTk):
     def _show_main(self, user, master_password: str):
         self._clear()
         self.geometry("820x600")
-        main = MainView(self, user, master_password, on_logout=self._show_auth)
+        main = MainView(self, user, master_password, on_logout=self._show_auth,
+                        on_check_update=self.check_for_updates)
         main.pack(fill="both", expand=True)
+
+    def check_for_updates(self):
+        """
+        检查更新
+        """
+        def on_check_complete(update_available, update_info, error):
+            if error:
+                print(f"检查更新失败: {error}")
+            elif update_available:
+                # 显示更新提示对话框
+                def on_update():
+                    self.download_update(update_info)
+
+                def on_remind_later():
+                    print("稍后提醒")
+
+                def on_ignore():
+                    print("忽略此版本")
+
+                self.update_ui.show_update_dialog(
+                    update_info, on_update, on_remind_later, on_ignore)
+            else:
+                # 显示已是最新版本
+                self.update_ui.show_message("检查更新", "当前已是最新版本")
+
+        # 开始检查更新
+        self.update_checker.check_for_updates(on_check_complete)
+
+    def download_update(self, update_info):
+        """
+        下载更新
+        """
+        download_url = update_info.get('download_url')
+        expected_md5 = update_info.get('md5_hash')
+
+        if not download_url:
+            self.update_ui.show_message("错误", "下载链接无效")
+            return
+
+        # 显示下载进度对话框
+        download_dialog = self.update_ui.show_download_progress(lambda: None)
+
+        def on_download_progress(progress, total_size, error):
+            if error:
+                download_dialog.destroy()
+                self.update_ui.show_message("错误", f"下载失败: {error}")
+            else:
+                download_dialog.update_progress(progress, total_size)
+                if progress == 100:
+                    # 下载完成，验证文件
+                    if self.update_downloader.verify_download(expected_md5):
+                        download_dialog.destroy()
+                        # 安装更新
+                        self.install_update(self.update_downloader.save_path)
+                    else:
+                        download_dialog.destroy()
+                        self.update_ui.show_message("错误", "下载文件损坏，请重试")
+
+        # 开始下载
+        self.update_downloader.download_update(
+            download_url, on_download_progress)
+
+    def install_update(self, update_path):
+        """
+        安装更新
+        """
+        # 显示安装提示
+        self.update_ui.show_message("安装更新", "正在安装更新，请稍候...")
+
+        # 安装更新
+        self.update_installer.install_update(update_path)
 
 
 def main():

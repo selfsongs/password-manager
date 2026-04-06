@@ -1,0 +1,95 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master, develop ]  # 监听 master 和 develop 分支的推送
+    tags: [ v*.*.* ]  # 监听版本 Tag 的创建
+
+jobs:
+  # Debug 构建（代码提交时）
+  debug-build:
+    if: startsWith(github.ref, 'refs/heads/')  # 只在分支推送时执行
+    runs-on: windows-latest  # 使用 Windows 环境
+    steps:
+      - uses: actions/checkout@v3  # 检出代码
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'  # 使用 Python 3.11
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+      - name: Build Debug version
+        run: |
+          pyinstaller --name password_manager_debug --onedir src/main.py
+      - name: Create ZIP archive for Debug
+        run: |
+          Compress-Archive -Path dist/password_manager_debug -DestinationPath dist/password_manager_debug.zip
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: password-manager-debug
+          path: dist/password_manager_debug.zip  # 上传压缩后的产物
+
+  # Release 构建（创建 Tag 时）
+  release-build:
+    if: startsWith(github.ref, 'refs/tags/v')  # 只在 Tag 创建时执行
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Extract version from tag
+        id: get-version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV  # 从 Tag 中提取版本号
+      - name: Update version files
+        run: |
+          # 更新 src/config.py（如果存在）
+          if (Test-Path src/config.py) {
+            (Get-Content src/config.py) -replace 'VERSION = ".*"', "VERSION = `"$env:VERSION`"" | Set-Content src/config.py
+          }
+          # 更新 pyproject.toml
+          (Get-Content pyproject.toml) -replace 'version = ".*"', "version = `"$env:VERSION`"" | Set-Content pyproject.toml
+          # 创建或更新 version.json
+          $versionInfo = @{
+            latest_version = $env:VERSION
+            download_url = "https://github.com/selfsongs/password-manager/releases/download/v$env:VERSION/password_manager.exe"
+            changelog = @("Auto-generated release")
+            md5_hash = ""
+          } | ConvertTo-Json
+          $versionInfo | Set-Content version.json
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+      - name: Build Release version
+        run: |
+          pyinstaller --name password_manager --onedir src/main.py
+      - name: Create ZIP archive
+        run: |
+          Compress-Archive -Path dist/password_manager -DestinationPath dist/password_manager.zip
+      - name: Calculate MD5 hash
+        id: calculate-hash
+        run: |
+          $hash = Get-FileHash dist/password_manager.zip -Algorithm MD5 | Select-Object -ExpandProperty Hash
+          echo "MD5_HASH=$hash" >> $env:GITHUB_ENV
+      - name: Update version.json with MD5
+        run: |
+          $versionInfo = Get-Content version.json | ConvertFrom-Json
+          $versionInfo.md5_hash = "$env:MD5_HASH"
+          $versionInfo.download_url = "https://github.com/selfsongs/password-manager/releases/download/v$env:VERSION/password_manager.zip"
+          $versionInfo | ConvertTo-Json | Set-Content version.json
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/password_manager.zip
+            version.json
+          body: "Release version ${{ env.VERSION }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 使用 GitHub 提供的 Token

@@ -148,12 +148,13 @@ class PasswordDialog(ctk.CTkToplevel):
 class MainView(ctk.CTkFrame):
     """登录后的主界面"""
 
-    def __init__(self, master, user, master_password: str, on_logout):
+    def __init__(self, master, user, master_password: str, on_logout, on_check_update=None):
         super().__init__(master, fg_color="transparent")
         self.user = user
         self.master_password = master_password
         self.salt = user["salt"]
         self.on_logout = on_logout
+        self.on_check_update = on_check_update
         self._build_ui()
         self._load_entries()
 
@@ -165,6 +166,18 @@ class MainView(ctk.CTkFrame):
         ctk.CTkLabel(
             top, text="密码管理器", font=ctk.CTkFont(size=20, weight="bold")
         ).pack(side="left")
+
+        # 检查更新按钮
+        if self.on_check_update:
+            ctk.CTkButton(
+                top,
+                text="检查更新",
+                width=90,
+                height=32,
+                fg_color="transparent",
+                border_width=1,
+                command=self.on_check_update,
+            ).pack(side="right", padx=(0, 10))
 
         ctk.CTkButton(
             top,
